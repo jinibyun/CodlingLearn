@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tip Calculator</title>
+  <link rel="stylesheet" href="tip-calculator.css" />
+</head>
+<body>
+  <main class="card" aria-label="Tip calculator">
+    <h1 class="title">Tip Calculator</h1>
+
+    <label for="price" class="label">Food Price</label>
+    <input id="price" class="input" type="number" min="0" step="0.01" placeholder="e.g., 45.99" />
+
+    <div class="hst-info">HST (13%): <strong id="hstAmount">$0.00</strong></div>
+
+    <p class="label">Tip Percent</p>
+    <div class="tip-buttons" role="group" aria-label="Tip percent selection">
+      <button type="button" class="tip-btn" data-tip="10">10%</button>
+      <button type="button" class="tip-btn" data-tip="15">15%</button>
+      <button type="button" class="tip-btn" data-tip="20">20%</button>
+    </div>
+
+    <section class="result-box" aria-live="polite">
+      <span class="result-label">Total Amount</span>
+      <strong id="totalPrice" class="result-value">$0.00</strong>
+    </section>
+  </main>
+
+  <script src="tip-calculator.js"></script>
+</body>
+</html>
