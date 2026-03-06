@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Random Dog Viewer</title>
+  <link rel="stylesheet" href="dog-viewer.css" />
+</head>
+<body>
+  <main class="card">
+    <h1 class="title">🐶 Random Dog</h1>
+
+    <div id="imageBox" class="image-box">
+      <p id="placeholder" class="placeholder">강아지를 불러오려면 버튼을 누르세요!</p>
+      <img id="dogImage" class="dog-image hidden" alt="Random dog" />
+      <p id="loadingText" class="loading-text hidden">강아지 부르는 중...</p>
+    </div>
+
+    <button id="fetchBtn" type="button" class="fetch-btn">새 강아지 보기</button>
+  </main>
+
+  <script src="dog-viewer.js"></script>
+</body>
+</html>
