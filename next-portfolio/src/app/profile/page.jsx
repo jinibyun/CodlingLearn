@@ -35,24 +35,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-
-async function fetchUserData() {
-  return new Promise((resolve) =>
-    setTimeout(
-      () =>
-        resolve({
-          username: "jini_developer",
-          email: "jini@example.com",
-          bio: "Toronto based developer",
-          role: "developer",
-          marketing_emails: true,
-          theme: "dark",
-        }),
-      1500
-    )
-  );
-}
 
 const formSchema = z.object({
   username: z
@@ -90,26 +74,85 @@ export default function ProfilePage() {
   const { isSubmitting } = form.formState;
 
   const [isLoading, setIsLoading] = useState(true);
+  const [profileId, setProfileId] = useState(null);
 
   useEffect(() => {
-    fetchUserData().then((data) => {
-      form.reset(data);
-      setIsLoading(false);
-    });
+    const fetchLatestProfile = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) throw error;
+
+        form.reset(data);
+        setProfileId(data.id);
+      } catch (error) {
+        console.error(error);
+        toast.error("데이터를 불러오지 못했습니다");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLatestProfile();
   }, [form]);
+
+  async function handleDelete() {
+    if (!window.confirm("정말 프로필을 삭제하시겠습니까?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("id", profileId);
+
+      if (error) throw error;
+
+      toast.success("프로필이 삭제되었습니다");
+      form.reset({
+        username: "",
+        email: "",
+        password: "",
+        bio: "",
+        role: "",
+        marketing_emails: false,
+        theme: "system",
+      });
+      setProfileId(null);
+    } catch (error) {
+      toast.error("삭제 실패", {
+        description: "서버에 문제가 발생했습니다. 다시 시도해주세요.",
+      });
+      console.error(error);
+    }
+  }
 
   async function onSubmit(values) {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      if (Math.random() < 0.5) throw new Error("서버 응답 지연");
-      console.log(values);
-      toast.success("프로필 저장 성공!", {
+      const isUpdate = Boolean(profileId);
+      const payload = isUpdate ? { ...values, id: profileId } : values;
+      const { data: upserted, error } = await supabase
+        .from("profiles")
+        .upsert(payload)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      setProfileId(upserted.id);
+
+      toast.success(isUpdate ? "프로필 수정 완료!" : "프로필 생성 완료!", {
         description: `이메일: ${values.email} · 직업: ${values.role}`,
       });
     } catch (error) {
       toast.error("저장 실패", {
         description: "서버에 문제가 발생했습니다. 다시 시도해주세요.",
       });
+      console.log(error);
     }
   }
 
@@ -305,16 +348,28 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      저장 중...
-                    </>
-                  ) : (
-                    "프로필 저장"
+                <div className="flex flex-col gap-2">
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        저장 중...
+                      </>
+                    ) : (
+                      profileId ? "프로필 수정" : "프로필 입력"
+                    )}
+                  </Button>
+                  {profileId && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="w-full"
+                      onClick={handleDelete}
+                    >
+                      프로필 삭제
+                    </Button>
                   )}
-                </Button>
+                </div>
               </form>
             </Form>
           </CardContent>
