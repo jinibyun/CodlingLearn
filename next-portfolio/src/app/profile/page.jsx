@@ -35,8 +35,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import useSWR from "swr";
+
+const fetcher = async (url) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("프로필 데이터를 불러오지 못했습니다.");
+  return res.json();
+};
 
 const formSchema = z.object({
   username: z
@@ -73,44 +79,35 @@ export default function ProfilePage() {
   const bioValue = form.watch("bio") ?? "";
   const { isSubmitting } = form.formState;
 
-  const [isLoading, setIsLoading] = useState(true);
   const [profileId, setProfileId] = useState(null);
 
+  const { data: json, error, isLoading, mutate } = useSWR("/api/profiles", fetcher);
+
   useEffect(() => {
-    const fetchLatestProfile = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+    if (json?.data) {
+      form.reset(json.data);
+      setProfileId(json.data.id);
+    }
+  }, [json, form]);
 
-        if (error) throw error;
-
-        form.reset(data);
-        setProfileId(data.id);
-      } catch (error) {
-        console.error(error);
-        toast.error("데이터를 불러오지 못했습니다");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchLatestProfile();
-  }, [form]);
+  useEffect(() => {
+    if (error) {
+      console.error(error);
+      toast.error("데이터를 불러오지 못했습니다");
+    }
+  }, [error]);
 
   async function handleDelete() {
     if (!window.confirm("정말 프로필을 삭제하시겠습니까?")) return;
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", profileId);
+      const res = await fetch(`/api/profiles?id=${profileId}`, {
+        method: "DELETE",
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        throw new Error("삭제에 실패했습니다.");
+      }
 
       toast.success("프로필이 삭제되었습니다");
       form.reset({
@@ -123,6 +120,7 @@ export default function ProfilePage() {
         theme: "system",
       });
       setProfileId(null);
+      mutate(null, { revalidate: false });
     } catch (error) {
       toast.error("삭제 실패", {
         description: "서버에 문제가 발생했습니다. 다시 시도해주세요.",
@@ -135,15 +133,20 @@ export default function ProfilePage() {
     try {
       const isUpdate = Boolean(profileId);
       const payload = isUpdate ? { ...values, id: profileId } : values;
-      const { data: upserted, error } = await supabase
-        .from("profiles")
-        .upsert(payload)
-        .select("id")
-        .single();
 
-      if (error) throw error;
+      const res = await fetch("/api/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      setProfileId(upserted.id);
+      if (!res.ok) {
+        throw new Error("저장에 실패했습니다.");
+      }
+
+      const json = await res.json();
+      setProfileId(json.data[0].id);
+      await mutate();
 
       toast.success(isUpdate ? "프로필 수정 완료!" : "프로필 생성 완료!", {
         description: `이메일: ${values.email} · 직업: ${values.role}`,
@@ -176,6 +179,7 @@ export default function ProfilePage() {
             <CardDescription>계정 정보와 환경 설정을 업데이트하세요.</CardDescription>
           </CardHeader>
           <CardContent>
+            {error && <p className="mb-4 text-sm text-red-500">{error.message}</p>}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
 
