@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2 } from "lucide-react";
 import {
@@ -36,11 +36,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import useSWR from "swr";
+import useSWRImmutable from "swr/immutable";
+import { supabase } from "@/lib/supabase";
 
 const fetcher = async (url) => {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("프로필 데이터를 불러오지 못했습니다.");
+  if (!res.ok) return { data: null };
   return res.json();
 };
 
@@ -63,6 +64,7 @@ const formSchema = z.object({
 });
 
 export default function ProfilePage() {
+  const router = useRouter();
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -79,23 +81,80 @@ export default function ProfilePage() {
   const bioValue = form.watch("bio") ?? "";
   const { isSubmitting } = form.formState;
 
+  const [authUser, setAuthUser] = useState(null);
   const [profileId, setProfileId] = useState(null);
 
-  const { data: json, error, isLoading, mutate } = useSWR("/api/profiles", fetcher);
+  const { data: json, isLoading, mutate } = useSWRImmutable("/api/profiles", fetcher);
 
   useEffect(() => {
-    if (json?.data) {
+    let isMounted = true;
+
+    const fetchAuthUser = async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+
+      if (!sessionData?.session) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getUser();
+
+      if (error) {
+        console.error(error);
+        router.replace("/login");
+        return;
+      }
+
+      if (isMounted) {
+        setAuthUser(data?.user ?? null);
+      }
+    };
+
+    fetchAuthUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "SIGNED_OUT" || !session) {
+          router.replace("/login");
+          router.refresh();
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (!json) return;
+
+    if (json.data) {
       form.reset(json.data);
       setProfileId(json.data.id);
+      return;
     }
-  }, [json, form]);
+
+    if (authUser?.email) {
+      form.reset({
+        username: "",
+        email: authUser.email,
+        password: "",
+        bio: "",
+        role: "",
+        marketing_emails: false,
+        theme: "system",
+      });
+      setProfileId(null);
+    }
+  }, [json, authUser, form]);
 
   useEffect(() => {
-    if (error) {
-      console.error(error);
-      toast.error("데이터를 불러오지 못했습니다");
+    if (authUser?.email && !profileId && !form.getValues("email")) {
+      form.setValue("email", authUser.email);
     }
-  }, [error]);
+  }, [authUser, profileId, form]);
 
   async function handleDelete() {
     if (!window.confirm("정말 프로필을 삭제하시겠습니까?")) return;
@@ -179,7 +238,6 @@ export default function ProfilePage() {
             <CardDescription>계정 정보와 환경 설정을 업데이트하세요.</CardDescription>
           </CardHeader>
           <CardContent>
-            {error && <p className="mb-4 text-sm text-red-500">{error.message}</p>}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
 
@@ -213,7 +271,12 @@ export default function ProfilePage() {
                       <FormItem>
                         <FormLabel>이메일</FormLabel>
                         <FormControl>
-                          <Input type="email" placeholder="example@email.com" {...field} />
+                          <Input
+                            type="email"
+                            placeholder="example@email.com"
+                            readOnly
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

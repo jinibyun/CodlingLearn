@@ -1,8 +1,13 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Toaster } from "@/components/ui/sonner";
+import { supabase } from "@/lib/supabase";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,12 +20,41 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
-  title: "OOO의 포트폴리오",
-  description: "Next.js로 만든 첫 번째 작품",
-};
-
 export default function RootLayout({ children }) {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (isMounted) {
+        setUser(session?.user || null);
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user || null);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  };
   return (
     <html
       lang="en"
@@ -47,9 +81,27 @@ export default function RootLayout({ children }) {
               </Link>
               <div className="ml-auto flex items-center gap-4">
                 <ThemeToggle />
-                <Link href="/login" className="text-sm font-semibold hover:text-slate-300">
-                  로그인
-                </Link>
+                {!loading && (
+                  <div className="flex items-center gap-4">
+                    {user && (
+                      <Link href="/profile" className="text-sm font-semibold hover:text-slate-300">
+                        프로필
+                      </Link>
+                    )}
+                    {!user ? (
+                      <Link href="/login" className="text-sm font-semibold hover:text-slate-300">
+                        로그인
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={handleLogout}
+                        className="text-sm font-semibold hover:text-slate-300"
+                      >
+                        로그아웃
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </nav>
           </header>
