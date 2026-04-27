@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 export async function GET(request) {
+  const supabase = await createSupabaseServerClient();
+
   const {
     data: { user },
     error: authError,
@@ -25,6 +27,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const supabase = await createSupabaseServerClient();
+
   const {
     data: { user },
     error: authError,
@@ -53,6 +57,8 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
+  const supabase = await createSupabaseServerClient();
+
   const {
     data: { user },
     error: authError,

@@ -160,8 +160,15 @@ export default function ProfilePage() {
     if (!window.confirm("정말 프로필을 삭제하시겠습니까?")) return;
 
     try {
+      const email = form.getValues("email") || authUser?.email;
+
       const res = await fetch(`/api/profiles?id=${profileId}`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: profileId,
+          email,
+        }),
       });
 
       if (!res.ok) {
