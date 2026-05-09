@@ -38,6 +38,7 @@ import {
 import { toast } from "sonner";
 import useSWRImmutable from "swr/immutable";
 import { supabase } from "@/lib/supabase";
+import AvatarUpload from "@/components/AvatarUpload";
 
 const fetcher = async (url) => {
   const res = await fetch(url);
@@ -51,14 +52,16 @@ const formSchema = z.object({
     .min(2, { message: "닉네임은 2~20자 사이여야 합니다." })
     .max(20, { message: "닉네임은 2~20자 사이여야 합니다." }),
   email: z.string().email({ message: "유효한 이메일 주소를 입력해주세요." }),
-  password: z
-    .string()
-    .min(8, { message: "비밀번호는 최소 8자 이상이어야 합니다." }),
   bio: z
     .string()
     .max(160, { message: "자기소개는 160자를 초과할 수 없습니다." })
     .optional(),
   role: z.string().min(1, { message: "직업을 선택해주세요." }),
+  avatar_url: z
+    .string()
+    .url({ message: "유효한 URL 형식이어야 합니다." })
+    .optional()
+    .or(z.literal("")),
   marketing_emails: z.boolean().default(false),
   theme: z.enum(["light", "dark", "system"]).default("system"),
 });
@@ -70,9 +73,9 @@ export default function ProfilePage() {
     defaultValues: {
       username: "",
       email: "",
-      password: "",
       bio: "",
       role: "",
+      avatar_url: "",
       marketing_emails: false,
       theme: "system",
     },
@@ -140,9 +143,9 @@ export default function ProfilePage() {
       form.reset({
         username: "",
         email: authUser.email,
-        password: "",
         bio: "",
         role: "",
+        avatar_url: "",
         marketing_emails: false,
         theme: "system",
       });
@@ -179,9 +182,9 @@ export default function ProfilePage() {
       form.reset({
         username: "",
         email: "",
-        password: "",
         bio: "",
         role: "",
+        avatar_url: "",
         marketing_emails: false,
         theme: "system",
       });
@@ -197,8 +200,10 @@ export default function ProfilePage() {
 
   async function onSubmit(values) {
     try {
+      console.log("[onSubmit] Form values:", values);
       const isUpdate = Boolean(profileId);
       const payload = isUpdate ? { ...values, id: profileId } : values;
+      console.log("[onSubmit] Payload to send:", payload);
 
       const res = await fetch("/api/profiles", {
         method: "POST",
@@ -206,11 +211,14 @@ export default function ProfilePage() {
         body: JSON.stringify(payload),
       });
 
+      console.log("[onSubmit] Response status:", res.status);
+      const json = await res.json();
+      console.log("[onSubmit] Response body:", json);
+
       if (!res.ok) {
-        throw new Error("저장에 실패했습니다.");
+        throw new Error(json.error || "저장에 실패했습니다.");
       }
 
-      const json = await res.json();
       setProfileId(json.data[0].id);
       await mutate();
 
@@ -218,10 +226,10 @@ export default function ProfilePage() {
         description: `이메일: ${values.email} · 직업: ${values.role}`,
       });
     } catch (error) {
+      console.error("[onSubmit] Error:", error);
       toast.error("저장 실패", {
-        description: "서버에 문제가 발생했습니다. 다시 시도해주세요.",
+        description: error.message || "서버에 문제가 발생했습니다. 다시 시도해주세요.",
       });
-      console.log(error);
     }
   }
 
@@ -254,6 +262,13 @@ export default function ProfilePage() {
                     기본 정보
                   </h3>
 
+                  {/* avatar upload */}
+                  <AvatarUpload
+                    url={form.watch("avatar_url")}
+                    size={128}
+                    onUpload={(url) => form.setValue("avatar_url", url)}
+                  />
+
                   {/* username */}
                   <FormField
                     control={form.control}
@@ -285,22 +300,6 @@ export default function ProfilePage() {
                             {...field}
                           />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {/* password */}
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>비밀번호</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="••••••••" {...field} />
-                        </FormControl>
-                        <FormDescription>최소 8자 이상 입력하세요.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

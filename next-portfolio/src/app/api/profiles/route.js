@@ -35,24 +35,40 @@ export async function POST(request) {
   } = await supabase.auth.getUser();
 
   if (authError || !user) {
+    console.error("[POST /api/profiles] Auth error:", authError);
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const payload = await request.json();
+  console.log("[POST /api/profiles] Payload:", payload);
+  console.log("[POST /api/profiles] User email:", user.email);
 
   if (!payload?.email || payload.email !== user.email) {
+    console.error("[POST /api/profiles] Email mismatch - payload.email:", payload?.email, "user.email:", user.email);
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data, error } = await supabase
     .from("profiles")
-    .upsert(payload)
+    .upsert({
+      id: payload.id,
+      email: payload.email,
+      username: payload.username,
+      bio: payload.bio,
+      role: payload.role,
+      avatar_url: payload.avatar_url,
+      marketing_emails: payload.marketing_emails,
+      theme: payload.theme,
+    })
+
     .select();
 
   if (error) {
+    console.error("[POST /api/profiles] DB error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  console.log("[POST /api/profiles] Success, data:", data);
   return NextResponse.json({ data }, { status: 200 });
 }
 
